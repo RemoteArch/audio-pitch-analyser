@@ -5,7 +5,7 @@ import subprocess
 import uuid
 import json
 from werkzeug.utils import secure_filename
-
+from utils.audio_anlyser import getFeaturesJson
 import dotenv
 dotenv.load_dotenv()
 
@@ -60,34 +60,18 @@ def call_ai_agent(analysis_data):
 
 @app.route('/analyze', methods=['POST'])
 def analyze_audio():
-    # Vérifier si un fichier a été envoyé
-    if 'file' not in request.files:
-        return jsonify({'error': 'Aucun fichier audio envoyé'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'Aucun fichier sélectionné'}), 400
-    
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Format de fichier non supporté'}), 400
-
     try:
         # Générer un nom de fichier unique
-        filename = secure_filename(file.filename)
+        filename = request.args.get('name' , '.mp3')
+        filename = secure_filename(filename)
         unique_filename = f"{str(uuid.uuid4())}_{filename}"
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         save_path = os.path.join(RESULTS_FOLDER, unique_filename + '.json')
         
-        # Sauvegarder le fichier
-        file.save(filepath)
+        with open(filepath , 'wb') as file:
+            file.write(request.data)
         
-        # Exécuter l'analyse
-        analyzer_path = os.path.join(os.path.dirname(__file__), 'audio-anlyser-correct.py')
-        subprocess.run(['python', analyzer_path, filepath, save_path], check=True)
-        
-        # Lire les résultats
-        with open(save_path, 'r') as f:
-            results = json.load(f)
+        results = getFeaturesJson(filepath)
 
         ai_response = call_ai_agent(results)
         data = {}
@@ -99,9 +83,14 @@ def analyze_audio():
         return jsonify(data)
     
     except subprocess.CalledProcessError as e:
-        return jsonify({'error': f'Erreur lors de l\'analyse: {str(e)}'}), 500
+        return jsonify({'error': f'Erreur lors de l\'analyse: {str(e)}'})
     except Exception as e:
-        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
+        return jsonify({'error': f'Erreur serveur: {str(e)}'})
+
+@app.route('/all-analyse')
+def results():
+    files = os.listdir(UPLOAD_FOLDER)
+    return jsonify(files)
 
 @app.route('/')
 def index():

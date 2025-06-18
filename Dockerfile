@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copier les fichiers de dépendances
-COPY requirements-correct.txt requirements.txt
+COPY requirements.txt requirements.txt
 
 # Installer les dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt
@@ -19,15 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le reste des fichiers
 COPY . .
 
-# Créer les répertoires nécessaires
-RUN mkdir -p uploads results
-
 # Exposer le port
 EXPOSE 5000
-
-# Variables d'environnement par défaut
-ENV FLASK_ENV=production
-ENV PYTHONUNBUFFERED=1
 
 # Commande par défaut
 CMD ["python", "server.py"]
