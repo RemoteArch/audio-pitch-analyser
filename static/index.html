@@ -15,7 +15,7 @@
     <script src="./assets/tailwind.min.js"></script>
 
     <script>
-        const BASE_URL = '';
+        const BASE_URL = 'https://wbsiz.clientxp.com/audio-analyzer';
         document.BASE_URL = BASE_URL;
     </script>
 </head>
@@ -27,11 +27,19 @@
     <script type="text/babel">
 
         const App = () => {
-            const isAdmin = location.href.includes('admin');
-            console.log(isAdmin);
+            const page = location.href.split('#')[1];
+            console.log(page);
+            const renderApp = (page)=>{
+                switch(page){
+                    case "admin":
+                        return (<Dashboard />)
+                    default:
+                        return (<Home />)
+                }
+            }
             return (
                 <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
-                    {isAdmin ? <Dashboard /> : <Home />}
+                    {renderApp(page)}
                 </div>
             );
         };

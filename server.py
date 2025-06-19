@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from utils.audio_anlyser import getFeaturesJson
 import dotenv
 dotenv.load_dotenv()
-
+import requests
 app = Flask(__name__)
 CORS(app)
 
@@ -24,36 +24,23 @@ os.makedirs(RESULTS_FOLDER, exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def call_ai_agent(analysis_data):
-    import openai
-    import json
-    
+def call_ai_agent(analysis_data , dest_analyse_data):    
     system_prompt = """
     Tu es un coach vocal expert qui analyse les performances de chant.
     Basé sur les données d'analyse audio fournies, donne une note sur 10 
-    et des conseils personnalisés pour aider l'utilisateur à s'améliorer.
+    et des conseils en moins de mots personnalisés pour aider l'utilisateur à s'améliorer.
     Réponds uniquement au format JSON avec les champs "note" et "feedback".
-    """
-
-    # Configuration de l'API OpenAI
-    openai.api_key = os.getenv("KEY")
-    
+    """    
     try:
-        # Appel à l'API OpenAI avec la nouvelle syntaxe (>=1.0.0)
-        client = openai.OpenAI(api_key=os.getenv("KEY"))
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(analysis_data)}
-            ],
-            max_tokens=500,
-            temperature=0.7
+        response = requests.post(
+            "https://wbsiz.clientxp.com/openai",
+            json={
+                "messages": json.dumps(analysis_data),
+                "system": system_prompt,
+            }
         )
-        
-        # Extraction de la réponse
-        return response.choices[0].message.content
+        # Decode bytes to string, then parse as JSON
+        return response.content.decode('utf-8')
     except Exception as e:
         print(f"Erreur lors de l'appel à l'API OpenAI: {str(e)}")
         return json.dumps({"note": 0, "feedback": "Oups je galere a repondre"})
@@ -62,7 +49,9 @@ def call_ai_agent(analysis_data):
 def analyze_audio():
     try:
         # Générer un nom de fichier unique
-        filename = request.args.get('name' , '.mp3')
+        filename = request.args.get('name')
+        if not filename:
+            return jsonify({"error":"filename not defined"})
         filename = secure_filename(filename)
         unique_filename = f"{str(uuid.uuid4())}_{filename}"
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
@@ -75,17 +64,21 @@ def analyze_audio():
 
         ai_response = call_ai_agent(results)
         data = {}
-        data['ai_response'] = ai_response
+        # Make sure ai_response is properly loaded as JSON if it's a JSON string
+        try:
+            data['ai_response'] = json.loads(ai_response)
+        except json.JSONDecodeError:
+            data['ai_response'] = ai_response  # Keep as string if not valid JSON
         data['analyse_result'] = results
 
         with open(save_path, 'w') as f:
             json.dump(data, f)
-        return jsonify(data)
+        return jsonify(data), 200
     
     except subprocess.CalledProcessError as e:
-        return jsonify({'error': f'Erreur lors de l\'analyse: {str(e)}'})
+        return jsonify({'error': f'Erreur lors de l\'analyse: {str(e)}'}), 500
     except Exception as e:
-        return jsonify({'error': f'Erreur serveur: {str(e)}'})
+        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
 
 @app.route('/all-analyse')
 def results():
